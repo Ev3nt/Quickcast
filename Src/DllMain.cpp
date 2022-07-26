@@ -102,26 +102,29 @@ HRESULT CALLBACK WndProcCustom(HWND wnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	if (IsInGame()) {
 		if (msg == WM_KEYDOWN || msg == WM_KEYUP) {
 			if (IsInGame()) {
-				if (hotkey == hotkeyTemp) {
-					isDown = (msg - 0x100) == 0;
+				isDown = (msg - 0x100) == 0;
 
-					if (isDown) {
+				if (isDown) {
+					if (hotkey == hotkeyTemp) {
 						UINT gameUI = GetGameUI(0, 0);
 						if (gameUI) {
 							UINT targetMode = ((UINT*)gameUI)[132];
 							if (targetMode) {
 								if (((UINT*)targetMode)[1] == 3) {
 									Click();
-
 								}
 							}
 						}
 					}
-				}
 
-				for (UINT i = 0; i < 6; i++) {
-					if (itemHotkeys[i] == wParam) {
-						CSimpleButtonPressEx(GetItemButton(i), VK_LBUTTON);
+					for (UINT i = 0; i < 6; i++) {
+						if (itemHotkeys[i] == wParam) {
+							CSimpleButtonPressEx(GetItemButton(i), VK_LBUTTON);
+						}
+					}
+
+					if (wParam == VK_SPACE) {
+						return DefWindowProc(wnd, msg, wParam, lParam);
 					}
 				}
 			}

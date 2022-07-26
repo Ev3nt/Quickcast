@@ -1,6 +1,7 @@
 #include <Windows.h>
 #include <detours.h>
 #include <map>
+#include "fp_call.h"
 
 #define AttachDetour(pointer, detour) (DetourUpdateThread(GetCurrentThread()), DetourAttach(&(PVOID&)pointer, detour))
 #define DetachDetour(pointer, detour) (DetourUpdateThread(GetCurrentThread()), DetourDetach(&(PVOID&)pointer, detour))
@@ -10,6 +11,7 @@ WNDPROC wndProc = NULL;
 HMODULE thismodule = NULL;
 std::map<UINT, BOOL> autoCastAbilityHotkeys;
 std::map<UINT, BOOL> autoCastItemHotkeys;
+std::map<UINT, UINT> itemHotkeys;
 DWORD hotkey = NULL;
 DWORD hotkeyTemp = NULL;
 bool isDown = false;
@@ -27,8 +29,11 @@ auto SetJassState = (void(__thiscall*)(BOOL jassState))(gameBase + 0x2ab0e0);
 
 HRESULT CALLBACK WndProcCustom(HWND wnd, UINT msg, WPARAM wParam, LPARAM lParam);
 BOOL __fastcall SetCursorModeCustom(LPVOID currentmode, LPVOID, int abilID, int a3, int a4, UINT itemHandle, int a6);
-BOOL __fastcall KeyPressedCustom(UINT mode, LPVOID, DWORD keyEvent);
+//BOOL __fastcall KeyPressedCustom(UINT mode, LPVOID, DWORD keyEvent);
 void __fastcall SetJassStateCustom(BOOL jassState);
+bool CSimpleButtonPress(UINT pButton, uint32_t key);
+bool CSimpleButtonPressEx(UINT pButton, UINT key);
+UINT GetItemButton(int id);
 
 bool IsInGame();
 
@@ -40,6 +45,10 @@ extern "C" void __stdcall SetAbilityQuickcast(UINT abilityId, BOOL state) {
 
 extern "C" void __stdcall SetItemQuickcast(UINT itemId, BOOL state) {
 	autoCastItemHotkeys[itemId] = state;
+}
+
+extern "C" void __stdcall SetItemHotkey(UINT index, UINT hotkey) {
+	itemHotkeys[index] = hotkey;
 }
 
 //-----------------------------------------------
@@ -92,18 +101,27 @@ HRESULT CALLBACK WndProcCustom(HWND wnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	hotkeyTemp = wParam;
 	if (IsInGame()) {
 		if (msg == WM_KEYDOWN || msg == WM_KEYUP) {
-			if (IsInGame() && hotkey == hotkeyTemp) {
-				isDown = (msg - 0x100) == 0;
+			if (IsInGame()) {
+				if (hotkey == hotkeyTemp) {
+					isDown = (msg - 0x100) == 0;
 
-				if (isDown) {
-					UINT gameUI = GetGameUI(0, 0);
-					if (gameUI) {
-						UINT targetMode = ((UINT*)gameUI)[132];
-						if (targetMode) {
-							if (((UINT*)targetMode)[1] == 3) {
-								Click();
+					if (isDown) {
+						UINT gameUI = GetGameUI(0, 0);
+						if (gameUI) {
+							UINT targetMode = ((UINT*)gameUI)[132];
+							if (targetMode) {
+								if (((UINT*)targetMode)[1] == 3) {
+									Click();
+
+								}
 							}
 						}
+					}
+				}
+
+				for (UINT i = 0; i < 6; i++) {
+					if (itemHotkeys[i] == wParam) {
+						CSimpleButtonPressEx(GetItemButton(i), VK_LBUTTON);
 					}
 				}
 			}
@@ -167,6 +185,57 @@ void __fastcall SetJassStateCustom(BOOL jassState) {
 	}
 
 	return SetJassState(jassState);
+}
+
+bool CSimpleButtonPress(UINT pButton, uint32_t key)
+{
+	return pButton ? this_call<UINT>(*(UINT*)(((UINT*)pButton)[0] + 0x6C), pButton, key) : false;
+}
+
+bool CSimpleButtonPressEx(UINT pButton, UINT key)
+{
+	bool result = false;
+	if (pButton)
+	{
+		uint32_t oldflag = ((UINT*)pButton)[78];
+		if (!(((UINT*)pButton)[78] & 0x2)) { ((UINT*)pButton)[78] |= 0x2; }
+		result = CSimpleButtonPress(pButton, key);
+		((UINT*)pButton)[78] = oldflag;
+	}
+
+	return result;
+}
+
+UINT GetItemButton(int id)
+{
+	UINT* gameui = (UINT*)GetGameUI(FALSE, FALSE);
+
+	if (gameui != NULL)
+	{
+		int pGamePlayerPanelItems = gameui[241];
+
+		if (pGamePlayerPanelItems != NULL)
+		{
+			int topLeftCommandButton = *(int*)(pGamePlayerPanelItems + 0x148);
+
+			if (topLeftCommandButton != NULL)
+			{
+				topLeftCommandButton = *(int*)(topLeftCommandButton + 0x130);
+
+				if (topLeftCommandButton != NULL)
+				{
+					topLeftCommandButton = *(int*)(topLeftCommandButton + 0x4);
+
+					if (topLeftCommandButton != NULL)
+					{
+						return topLeftCommandButton + 0x1C0 * id;
+					}
+				}
+			}
+		}
+	}
+
+	return NULL;
 }
 
 //---------------------------------------------------

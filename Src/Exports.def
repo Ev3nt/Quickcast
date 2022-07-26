@@ -1,3 +1,4 @@
 EXPORTS
 	SetAbilityQuickcast
 	SetItemQuickcast
+	SetItemHotkey
